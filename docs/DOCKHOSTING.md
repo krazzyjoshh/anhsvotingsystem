@@ -46,6 +46,8 @@ Official guide: [Environment variables and storage](https://docs.dockhosting.dev
 
 Copy values privately from your local `server/.env` into the project's environment variables. Do not upload `.env` into a repository, a source archive, or the Docker image.
 
+Set application variables to **Runtime only**. If the dashboard has an **Available at Buildtime** checkbox, clear it for these variables, particularly `WALLET_JSON`, `JWT_SECRET`, `ADMIN_PASSWORD`, and `TOKEN_PEPPER`. The Docker build does not need the wallet or application secrets. `NODE_ENV=production` is already defined for the runtime image; keep any dashboard override runtime-only as well. The frontend stage explicitly installs development dependencies so Vite remains available even if the platform injects a production build environment.
+
 | Variable | Value |
 | --- | --- |
 | `JWT_SECRET` | Existing value from local configuration |
@@ -100,6 +102,7 @@ Free apps sleep when idle. Avoid deployments during active voting or token publi
 | `Attach a persistent volume at /data` | Attach the volume; do not disable the storage check |
 | `WALLET_JSON must contain ...` / `wallet ... invalid` | Privately copy the existing wallet's actual JSON array |
 | `Frontend build is missing` | Use the repository-root Dockerfile, which builds `web/` |
+| `vite: not found` during the build | Use the latest Dockerfile with `npm ci --include=dev`; keep `NODE_ENV` runtime-only |
 | Database permission error | Make `/data` writable by container UID/GID 1000 |
 | Blockchain read/transaction error | Verify RPC network, wallet funding on that network, IDL, and saved election address |
 

@@ -1,7 +1,9 @@
 FROM node:24-bookworm-slim AS frontend
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
-RUN npm ci
+# The hosting platform can inject NODE_ENV=production during builds.
+# Vite is a devDependency and is required only in this builder stage.
+RUN npm ci --include=dev
 COPY web/ ./
 RUN npm run build
 
