@@ -1,0 +1,11 @@
+.anchor
+.DS_Store
+/target/*
+!/target/idl/
+/target/idl/*
+!/target/idl/voting_system.json
+**/*.rs.bk
+node_modules
+test-ledger
+.yarn
+.surfpool

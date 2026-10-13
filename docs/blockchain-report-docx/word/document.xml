@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>ANHS Voting System Blockchain Explanation</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Prepared for instructor checking and system defense</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Date: October 7, 2026</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>1. System Overview</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The ANHS Voting System is a web-based school election system with blockchain integration. It has an admin portal for managing students, candidates, voting tokens, election status, blockchain publishing, and ledger verification. It also has a voter page where students log in using assigned voting tokens and submit their votes.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The system uses three main parts: a React frontend in the web folder, an Express/Node.js backend in the server folder, and a Solana Anchor smart contract in the chain folder.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>2. Blockchain Used</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The blockchain used is Solana Devnet. Devnet is a test network for development and checking, so the SOL used here is test SOL and not real money.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Program ID: 3qbabjuWYpbyWFaHfmW1qmjLWkWMJkDxZUbUVzRE8VXX</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Current configured wallet: d2U439vfFaC9EpBWDhhPrVB5RwKrCUquyxqSHtC8vdL</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Current election address: GB3JARBRnPvcZjgwgL69YXLNKmE1tYTbRjS2AZP2ptNU</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The backend connects to Devnet using the wallet file configured in server/.env through WALLET_PATH. The backend also reads the Anchor IDL file at chain/target/idl/voting_system.json so it knows how to call the deployed smart contract.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>3. Smart Contract Functions</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The Solana program contains the main election logic. The important instructions are:</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- create_election: creates the election account and stores the election title, authority wallet, status, position count, and token count.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- add_position: adds each election position and the list of candidates for that position.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- register_token: registers a hashed voting token on-chain before voting opens.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- set_status: moves the election status forward from pending to open to closed.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- cast_vote: records a vote for one candidate in one position after confirming that the election is open.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>4. On-Chain Accounts</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The program uses Program Derived Addresses or PDAs. This means the system can calculate predictable blockchain addresses for election data without manually creating random addresses.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- Election PDA: stores the election authority, title, status, number of positions, and number of registered tokens.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- Position PDA: stores the position name, candidate names, and vote totals.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- TokenRecord PDA: proves that a voting token was registered on-chain.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>- VoteRecord PDA: prevents duplicate voting for the same token and position.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>5. Voting Flow</w:t></w:r></w:p>
+    <w:p><w:r><w:t>First, the admin prepares the students, candidates, positions, and voting tokens in the local database. When everything is ready, the admin publishes the election to Solana Devnet. Publishing creates the election account, position accounts, and token records on-chain.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>After publishing, the admin can open the election. Students log in using their assigned token. When a voter submits a ballot, the backend groups selections into blockchain transactions. Each vote transaction calls cast_vote on the Solana program.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>After submission, the system saves a receipt code and transaction signatures. The receipt lets the voter verify that a submission exists without exposing the raw voting token.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>6. Security and Integrity</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The system uses voting tokens instead of ordinary usernames for voter access. The raw token is not stored directly on-chain. Instead, the backend hashes the token using HMAC-SHA256 with TOKEN_PEPPER before creating token and vote PDAs.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The smart contract prevents double voting per position because a VoteRecord PDA is created for each token and position. If the same token tries to vote again for the same position, the account already exists and the transaction fails.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Election status also protects the process. Votes can only be cast when the election status is open. Setup actions such as adding positions and registering tokens are locked after the election leaves pending status.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>7. Admin Blockchain Page</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The Blockchain page in the admin portal shows the wallet address, program ID, wallet balance, election status, registered tokens, and publishing progress. The balance is read directly from Solana Devnet through the backend.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The balance is now displayed in both SOL and lamports. Lamports are the smallest unit of SOL. 1 SOL is equal to 1,000,000,000 lamports.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>8. Current Checked Status</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The server was tested using npm test, and all 30 server tests passed. The web frontend was also built successfully using npm run build.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The backend can get a real response from Solana Devnet. The admin blockchain API returns wallet, program ID, balance, election status, and registered blockchain data.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Current wallet balance after publishing is approximately 4.98572568 SOL. The election is already published and opened using the current configured wallet.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>9. Important Wallet Note</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The system is now using the current local wallet as the authority wallet for the newly published Devnet election. This means the configured wallet can read the election and also send authorized write transactions such as status changes and vote submissions.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>A previous election existed on Devnet under a different authority wallet, but the local system was reset to a new election and republished with the current wallet for demonstration and checking.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>10. How to Explain to the Instructor</w:t></w:r></w:p>
+    <w:p><w:r><w:t>You can explain it this way:</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Our system is a school voting system connected to Solana Devnet. The admin prepares students, candidates, and voting tokens locally. When the election is published, the important election structure is written to the Solana smart contract. Each voting token is hashed before being registered on-chain. During voting, the backend sends transactions to the smart contract, and the smart contract records vote counts while preventing duplicate votes per token and position.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The blockchain part is used for election integrity, vote counting, duplicate vote prevention, and public verifiability through transaction signatures and Solana Explorer. The local database is still used for user management, student information, token assignment, and receipts.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>If asked about balance, say: the wallet balance is shown from Devnet. The current wallet has enough Devnet SOL and was used to publish and open the new blockchain election.</w:t></w:r></w:p>
+
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>11. Final Assessment</w:t></w:r></w:p>
+    <w:p><w:r><w:t>The system is okay for checking the code, UI, API response, smart contract structure, blockchain read response, test coverage, and live Devnet blockchain integration. The current wallet is the authority wallet for the newly published election.</w:t></w:r></w:p>
+
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>

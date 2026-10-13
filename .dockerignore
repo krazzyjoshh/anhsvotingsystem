@@ -1,0 +1,36 @@
+# Include only the files needed by this image. Private data never enters the build context.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!server/
+!server/package.json
+!server/package-lock.json
+!server/src/
+!server/src/**
+!server/scripts/
+!server/scripts/start-production.js
+!server/scripts/diagnose.js
+!web/
+!web/package.json
+!web/package-lock.json
+!web/index.html
+!web/vite.config.js
+!web/src/
+!web/src/**
+!web/public/
+!web/public/**
+!chain/
+!chain/target/
+!chain/target/idl/
+!chain/target/idl/voting_system.json
+# Keep these exclusions last, including files under otherwise allowed directories.
+**/node_modules/**
+**/.env
+**/.env.*
+**/*.sqlite*
+**/*-keypair.json
+**/id.json
+**/*.pem
+**/*.key
