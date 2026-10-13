@@ -103,6 +103,7 @@ Free apps sleep when idle. Avoid deployments during active voting or token publi
 | `WALLET_JSON must contain ...` / `wallet ... invalid` | Privately copy the existing wallet's actual JSON array |
 | `Frontend build is missing` | Use the repository-root Dockerfile, which builds `web/` |
 | `vite: not found` during the build | Use the latest Dockerfile with `npm ci --include=dev`; keep `NODE_ENV` runtime-only |
+| `npm ci` reports missing `bufferutil` or `utf-8-validate` in the lockfile | Deploy the latest backend lockfile, which includes the optional websocket packages and has been checked with npm 11.19.0 |
 | Database permission error | Make `/data` writable by container UID/GID 1000 |
 | Blockchain read/transaction error | Verify RPC network, wallet funding on that network, IDL, and saved election address |
 
