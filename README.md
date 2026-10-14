@@ -38,6 +38,10 @@ The active frontend is in `web/`; `server/web/` is an earlier frontend.
 
 Follow [the DockHosting guide](docs/DOCKHOSTING.md) to serve the website and API from one Docker deployment. A persistent volume at `/data` and private runtime secrets are required. Verify Free-plan storage availability before deploying; the production launcher refuses to use an unmounted container directory for election data.
 
+## Deploying to alwaysdata
+
+For hosting with persistent account storage and Node.js 24, see [the alwaysdata guide](docs/ALWAYSDATA.md). Use its dedicated startup command when deploying there.
+
 ## Moving to another laptop
 
 Follow [the Windows transfer guide](docs/WINDOWS_TRANSFER.md). A GitHub clone provides source code and the IDL; `.env`, SQLite data, and wallet keys require a separate private transfer. Install dependencies on the destination operating system instead of copying `node_modules`.

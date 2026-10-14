@@ -13,10 +13,10 @@ $relativeFiles = @(
     'Dockerfile', '.dockerignore', '.gitignore', 'README.md', 'package.json', 'package-lock.json',
     'scripts/check-dev-ports.js', 'scripts/package-dockhosting.ps1',
     'server/package.json', 'server/package-lock.json', 'server/.env.example',
-    'server/scripts/start-production.js', 'server/scripts/diagnose.js',
+    'server/scripts/start-production.js', 'server/scripts/start-alwaysdata.js', 'server/scripts/diagnose.js',
     'web/package.json', 'web/package-lock.json', 'web/index.html', 'web/vite.config.js',
     'chain/target/idl/voting_system.json',
-    'docs/DOCKHOSTING.md', 'docs/WINDOWS_TRANSFER.md'
+    'docs/DOCKHOSTING.md', 'docs/ALWAYSDATA.md', 'docs/WINDOWS_TRANSFER.md'
 )
 $sourceDirectories = @('server/src', 'server/tests', 'web/src', 'web/public')
 foreach ($directory in $sourceDirectories) {
