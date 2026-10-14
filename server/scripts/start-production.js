@@ -29,7 +29,10 @@ function prepareProduction() {
     const mountPoints = fs.readFileSync("/proc/self/mountinfo", "utf8").split("\n")
       .map((line) => (line.split(" ")[4] || "").replace(/\\([0-7]{3})/g, (_, value) => String.fromCharCode(parseInt(value, 8))));
     if (!mountPoints.includes(storage)) {
-      throw new Error(`Attach a persistent volume at ${storage} before starting this app.`);
+      const detected = [...new Set(mountPoints.filter(Boolean))].sort();
+      throw new Error(`Attach a persistent volume at ${storage} before starting this app. ` +
+        `Detected mount paths: ${JSON.stringify(detected)}. ` +
+        "If the mount path is already saved in your hosting dashboard, ask the host to verify the running container's volume attachment.");
     }
   }
 

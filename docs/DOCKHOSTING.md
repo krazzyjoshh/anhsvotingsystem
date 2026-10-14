@@ -107,6 +107,24 @@ Free apps sleep when idle. Avoid deployments during active voting or token publi
 | Database permission error | Make `/data` writable by container UID/GID 1000 |
 | Blockchain read/transaction error | Verify RPC network, wallet funding on that network, IDL, and saved election address |
 
+### Mount path is saved but startup still reports no volume
+
+Refresh the project's Persistent Storage page and confirm that `/data` remains saved, then redeploy the same project. DockHosting's [storage guide](https://docs.dockhosting.dev/docs/environment-variables) says persistent volumes also apply to custom Dockerfiles.
+
+If startup still fails, check `Detected mount paths` in the container logs. This lists the container destinations without exposing wallet keys, environment values, or host-side volume sources. A saved dashboard setting alone does not confirm that Docker attached the volume.
+
+If `/data` is absent, send hosting support this request along with the failed deployment ID:
+
+> Persistent Storage has `/data` saved and I redeployed, but the container cannot see a mount at `/data` in `/proc/self/mountinfo`. Please verify that the project's persistent volume is attached to the deployed application container with destination `/data` and is reused on redeploy. The container uses UID/GID 1000.
+
+If you manage the deployment server yourself, inspect the application's container mounts (replace the placeholder with its actual container name):
+
+```sh
+docker inspect --format '{{json .Mounts}}' <application-container-name>
+```
+
+The persistent volume's destination must match `STORAGE_PATH`, with `DB_PATH` pointing to a file inside it. Keep `REQUIRE_PERSISTENT_STORAGE=true`. Changing the healthcheck or creating `/data` in the image cannot attach persistent storage.
+
 ## Local validation
 
 ```powershell
