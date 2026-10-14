@@ -15,6 +15,7 @@ COPY server/package.json server/package-lock.json ./server/
 RUN npm --prefix server ci --omit=dev && npm cache clean --force
 COPY server/src/ ./server/src/
 COPY server/scripts/start-production.js ./server/scripts/start-production.js
+COPY server/scripts/reset-admin.js ./server/scripts/reset-admin.js
 COPY server/scripts/diagnose.js ./server/scripts/diagnose.js
 COPY chain/target/idl/voting_system.json ./chain/target/idl/voting_system.json
 COPY --from=frontend /app/web/dist ./web/dist

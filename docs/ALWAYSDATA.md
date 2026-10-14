@@ -59,6 +59,30 @@ Let alwaysdata supply `IP`/`HOST` and `PORT`; copying the local port 4000 is unn
 
 If using a subpath address, the current frontend expects to be served at the root; prefer a dedicated address rather than adding a subpath.
 
+## Recover an admin login
+
+Admin credentials are initialized only when the database has no admin. Changing `ADMIN_PASSWORD` in the site's environment does not replace a saved password hash. In a `.env` file, quote passwords containing `#`, for example `ADMIN_PASSWORD="your-password#"`, so dotenv does not treat the suffix as a comment.
+
+From the repository directory in the alwaysdata SSH terminal:
+
+```sh
+export NODEJS_VERSION=24
+git pull --ff-only
+node server/scripts/reset-admin.js --alwaysdata --email admin@anhs.local
+```
+
+Enter the intended password twice at the hidden prompts. This updates the selected admin account directly in the existing database and preserves students, tokens, receipts and election settings. If exactly one admin exists, the command also corrects its email to the requested address; with multiple admins, the email must identify an existing account. Passwords are not passed as command arguments or printed. The command never creates a missing database or a new admin account. Log in using the specified email and password; a site restart is unnecessary. Update the private `ADMIN_PASSWORD` setting to match for future fresh setups.
+
+For another host or a non-default database filename, use `--db /absolute/path/data.sqlite` instead of `--alwaysdata`.
+
+## Change the free account address
+
+The free address is tied to your account name. To obtain `anhsvotingsystem.alwaysdata.net`, the account owner can request an account rename to `anhsvotingsystem`, if available, through **Customer area > Subscriptions**. See alwaysdata's [account rename guide](https://help.alwaysdata.com/en/docs/admin-billing/accounts/rename-account/).
+
+Account renaming changes the home directory and service hostnames and can interrupt the site. Back up the database first. After renaming, verify that the repository, database, wallet and permissions remain present under the new account home. Update the site address, command/working directory if they contain the old absolute path, and any absolute `WALLET_PATH` or `DB_PATH` settings. The dedicated launcher derives its default database path from the current account home. Verify `/api/health` and admin login at the new address before sharing it.
+
+`https://anhsvotingsystem` alone is not a public domain provided by alwaysdata. For a different public domain, register and configure one before adding it to the site's addresses. The working alwaysdata domain ends in `.net`, not `.nett`.
+
 ## Verify and update
 
 Open your HTTPS address and check `/api/health`, `/`, `/admin/login`, and a read-only blockchain page. Confirm the expected admin, election address and record counts before enabling writes. Restart the site and confirm its saved data remains present. Keep only one writable instance when continuing an existing election.

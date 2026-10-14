@@ -11,6 +11,7 @@
 !server/src/**
 !server/scripts/
 !server/scripts/start-production.js
+!server/scripts/reset-admin.js
 !server/scripts/diagnose.js
 !web/
 !web/package.json

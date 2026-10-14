@@ -92,6 +92,29 @@ test("admin login verifies the password and admin pages reject voter and invalid
     assert.equal((await request("/admin/stats", { token })).status, 401);
   }
 });
+test("an admin password reset restores login without altering election records", async () => {
+  fixture();
+  const { resetAdmin } = require("../scripts/reset-admin");
+  const nextPassword = "reset-integration-password#";
+  const before = db.prepare("SELECT * FROM students ORDER BY id").all();
+  try {
+    resetAdmin(process.env.DB_PATH, process.env.ADMIN_EMAIL, nextPassword);
+    assert.equal((await request("/admin/login", { method: "POST", body: {
+      email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD,
+    } })).status, 401);
+    const login = await request("/admin/login", { method: "POST", body: {
+      email: process.env.ADMIN_EMAIL, password: nextPassword,
+    } });
+    assert.equal(login.status, 200);
+    assert.equal(jwt.verify(login.data.token, process.env.JWT_SECRET).sub, 1);
+    assert.deepEqual(db.prepare("SELECT * FROM students ORDER BY id").all(), before);
+    assert.equal(settings.get("election_address"), "public-election-address");
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM voting_tokens").get().count, 2);
+  } finally {
+    resetAdmin(process.env.DB_PATH, process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD);
+  }
+});
+
 test("public endpoints share a five-second cache and whitelist status fields", async () => {
   fixture();
   const responses = await Promise.all(Array.from({ length: 12 }, () => request("/public/status")));
