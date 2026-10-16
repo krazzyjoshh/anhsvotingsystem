@@ -284,6 +284,7 @@ router.post(
         JSON.stringify(archiveResult)
       );
       db.prepare("UPDATE voting_tokens SET used = 0, used_at = NULL").run();
+      db.prepare("DELETE FROM voter_sessions").run();
       db.prepare("UPDATE students SET has_voted = 0, voted_at = NULL").run();
       settings.set("election_id", nextId);
       settings.set("election_address", "");

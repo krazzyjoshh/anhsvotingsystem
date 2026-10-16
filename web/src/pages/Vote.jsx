@@ -29,8 +29,19 @@ export default function Vote() {
   const rawStep = Number(new URLSearchParams(location.search).get("step") || 1);
   const step = Number.isSafeInteger(rawStep) && rawStep >= 1 ? rawStep - 1 : 0;
 
-  function reset(message = null) {
+  async function reset(message = null) {
     if (typeof message !== "string") message = null;
+    if (vToken()) {
+      setBusy(true); setLoading(true);
+      try { await vapi("/logout", { method: "POST" }); }
+      catch (error) {
+        if (error.status !== 401) {
+          setM({ type: "err", text: "Unable to log out. Check your connection and try again." });
+          if (stage === "logout") nav("/vote/dashboard", { replace: true });
+          return;
+        }
+      } finally { setBusy(false); setLoading(false); }
+    }
     setLoading(false); clearSession(); setSel({}); setReceipt(null); setBallot(null); setMe(null); setLocked(false); setCode("");
     setM(message ? { type: "err", text: message } : null);
     nav("/vote", { replace: true, state: message ? { message } : null });

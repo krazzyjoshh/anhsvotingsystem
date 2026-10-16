@@ -100,7 +100,7 @@ if (process.env.NODE_ENV === "production") {
 app.use((err, _req, res, _next) => {
   if (!err.status) logError("request_failed", err);
   res.status(err.status || 500).json({ error: err.status ? err.message : "A server error occurred.",
-    ...(err.code && ["TOKEN_USED", "BALLOT_LOCKED"].includes(err.code) ? { code: err.code } : {}) });
+    ...(err.code && ["TOKEN_USED", "TOKEN_IN_USE", "BALLOT_LOCKED"].includes(err.code) ? { code: err.code } : {}) });
 });
 
 if (require.main === module) {

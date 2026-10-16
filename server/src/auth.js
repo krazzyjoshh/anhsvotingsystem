@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const voterSessions = require("./voter-sessions");
 
 function requireAdmin(req, res, next) {
   try {
@@ -17,8 +18,10 @@ function requireVoter(req, res, next) {
     const raw = (req.get("authorization") ?? "").replace("Bearer ", "");
     const payload = jwt.verify(raw, process.env.JWT_SECRET);
     if (payload.role !== "voter") throw new Error("not voter");
+    if (!voterSessions.active(payload)) throw new Error("inactive voter session");
     req.tokenId = payload.sub;
     req.voterElectionId = payload.electionId;
+    req.voterSessionId = payload.sid;
     next();
   } catch {
     res.status(401).json({ error: "Your session has expired. Log in again with your token." });

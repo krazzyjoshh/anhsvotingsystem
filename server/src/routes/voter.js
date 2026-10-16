@@ -1,6 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
-const jwt = require("jsonwebtoken");
+const voterSessions = require("../voter-sessions");
 const db = require("../db");
 const settings = require("../settings");
 const chain = require("../chain");
@@ -61,9 +61,16 @@ router.post("/login", async (req, res) => {
   const found = /^[A-Z0-9]{8}$/.test(code) ? db.prepare("SELECT id FROM voting_tokens WHERE code = ?").get(code) : null;
   if (!found) { recordFail(req.ip); throw fail(401, "Invalid token. Please check it and try again."); }
   loadToken(found.id);
+  const id = election.electionId();
   await openElection();
-  const token = jwt.sign({ sub: found.id, role: "voter", electionId: election.electionId() }, process.env.JWT_SECRET, { expiresIn: "2h" });
+  if (election.electionId() !== id) throw fail(409, "The election changed. Please try again.");
+  loadToken(found.id);
+  const token = voterSessions.create(found.id, id);
   res.json({ token });
+});
+router.post("/logout", requireVoter, (req, res) => {
+  voterSessions.release(req.tokenId, req.voterSessionId);
+  res.json({ ok: true });
 });
 router.get("/me", requireVoter, async (req, res) => {
   sessionElection(req); loadToken(req.tokenId); await openElection();

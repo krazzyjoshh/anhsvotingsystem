@@ -41,10 +41,15 @@ const db = require("../src/db");
 const settings = require("../src/settings");
 const election = require("../src/election");
 const models = require("../src/models");
+const voterSessions = require("../src/voter-sessions");
 let server = app.listen(0, "127.0.0.1");
 let ready = new Promise((resolve) => server.once("listening", resolve));
 const admin = jwt.sign({ sub: 1, role: "admin" }, process.env.JWT_SECRET);
-const voter = (id = 1, electionId = 101) => jwt.sign({ sub: id, role: "voter", electionId }, process.env.JWT_SECRET);
+const voter = (id = 1, electionId = 101) => {
+  const session = db.prepare("SELECT session_id FROM voter_sessions WHERE token_id = ?").get(id);
+  if (!session) return voterSessions.create(id, electionId);
+  return jwt.sign({ sub: id, role: "voter", electionId, sid: session.session_id }, process.env.JWT_SECRET);
+};
 async function request(url, { token, method = "GET", body } = {}) {
   await ready;
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api${url}`, { method,
@@ -53,7 +58,7 @@ async function request(url, { token, method = "GET", body } = {}) {
   return { status: response.status, data: await response.json(), cache: response.headers.get("cache-control") };
 }
 function fixture(count = 2) {
-  for (const table of ["receipt_transactions", "submission_batches", "receipts", "voting_tokens", "students", "candidates", "positions", "settings", "election_archive"])
+  for (const table of ["receipt_transactions", "submission_batches", "receipts", "voter_sessions", "voting_tokens", "students", "candidates", "positions", "settings", "election_archive"])
     db.prepare(`DELETE FROM ${table}`).run();
   positions = [];
   for (let i = 1; i <= count; i++) {
@@ -383,6 +388,82 @@ test("ledger rejects anonymous users and every removed operation returns 404", a
     ["PUT", "/candidates/1"], ["DELETE", "/candidates/1"], ["DELETE", "/positions/1"], ["DELETE", "/tokens/unused"], ["DELETE", "/tokens/1"]])
     for (const token of [undefined, admin]) assert.equal((await request(`/admin${url}`, { method, token })).status, 404);
 });
+const loginVoter = (token = "ABCDEF01") => request("/vote/login", { method: "POST", body: { token } });
+
+test("simultaneous token logins admit only one session and leave the first voter signed in", async () => {
+  fixture();
+  const attempts = await Promise.all(Array.from({ length: 5 }, () => loginVoter()));
+  assert.equal(attempts.filter((r) => r.status === 200).length, 1);
+  for (const blocked of attempts.filter((r) => r.status !== 200)) {
+    assert.equal(blocked.status, 409);
+    assert.equal(blocked.data.code, "TOKEN_IN_USE");
+    assert.match(blocked.data.error, /already in use on another device/);
+    assert.equal(blocked.data.token, undefined);
+  }
+  const token = attempts.find((r) => r.status === 200).data.token;
+  assert.equal((await request("/vote/me", { token })).status, 200);
+  assert.equal((await request("/vote/ballot", { token })).status, 200);
+  assert.equal((await loginVoter("ABCDEF02")).status, 200);
+  const claims = jwt.verify(token, process.env.JWT_SECRET);
+  assert.equal(claims.exp - claims.iat, 2 * 60 * 60);
+});
+
+test("logout releases only the authenticated session and revokes its JWT on every voter endpoint", async () => {
+  fixture();
+  const first = (await loginVoter()).data.token;
+  const logout = (token) => request("/vote/logout", { token, method: "POST" });
+  assert.equal((await logout()).status, 401);
+  assert.equal((await loginVoter()).status, 409);
+  assert.equal((await logout(first)).status, 200);
+  const second = await loginVoter();
+  assert.equal(second.status, 200);
+  assert.notEqual(second.data.token, first);
+  const legacy = jwt.sign({ sub: 1, role: "voter", electionId: 101 }, process.env.JWT_SECRET);
+  for (const token of [first, legacy, admin]) {
+    for (const url of ["/vote/me", "/vote/ballot", "/vote/receipt"])
+      assert.equal((await request(url, { token })).status, 401);
+    assert.equal((await request("/vote/submit", { token, method: "POST", body: { selections: selections() } })).status, 401);
+    assert.equal((await logout(token)).status, 401);
+  }
+  assert.equal((await request("/vote/me", { token: second.data.token })).status, 200);
+  assert.equal((await loginVoter()).status, 409);
+});
+
+test("expired sessions release a token and cannot access a replacement session", async () => {
+  fixture();
+  const first = (await loginVoter()).data.token;
+  db.prepare("UPDATE voter_sessions SET expires_at = ? WHERE token_id = 1").run(Date.now() - 1);
+  assert.equal((await request("/vote/me", { token: first })).status, 401);
+  const next = await loginVoter();
+  assert.equal(next.status, 200);
+  assert.equal((await request("/vote/me", { token: first })).status, 401);
+  assert.equal((await request("/vote/me", { token: next.data.token })).status, 200);
+});
+
+test("invalid, used, inactive and closed-election logins never claim a session", async () => {
+  fixture();
+  assert.equal((await loginVoter("INVALID1")).status, 401);
+  db.prepare("UPDATE voting_tokens SET used = 1 WHERE id = 1").run();
+  assert.equal((await loginVoter()).data.code, "TOKEN_USED");
+  db.prepare("UPDATE voting_tokens SET used = 0 WHERE id = 1").run();
+  db.prepare("UPDATE students SET active = 0 WHERE id = 1").run();
+  assert.equal((await loginVoter()).status, 403);
+  db.prepare("UPDATE students SET active = 1 WHERE id = 1").run();
+  chainStatus = 2; election.invalidate();
+  assert.equal((await loginVoter()).status, 403);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM voter_sessions").get().n, 0);
+});
+
+test("a new election accepts tokens with sessions left over from the previous election", async () => {
+  fixture();
+  const old = (await loginVoter()).data.token;
+  settings.set("election_id", 102); election.invalidate();
+  const next = await loginVoter();
+  assert.equal(next.status, 200);
+  assert.equal((await request("/vote/me", { token: old })).status, 401);
+  assert.equal((await request("/vote/me", { token: next.data.token })).status, 200);
+});
+
 test("voter me returns only election title and student name/grade/section", async () => {
   fixture(); assert.equal((await request("/vote/me")).status, 401);
   const me = await request("/vote/me", { token: voter() }); assert.equal(me.status, 200);
@@ -418,6 +499,7 @@ test("multi-batch receipts persist every signature and recover a lost response i
 });
 test("partial submission resumes using SQLite metadata without resending a confirmed batch", async () => {
   fixture(7); nextFailure = 2;
+  const token = (await loginVoter()).data.token;
   assert.equal((await submit()).status, 503);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM receipts").get().n, 0);
   assert.equal(db.prepare("SELECT used FROM voting_tokens WHERE id = 1").get().used, 0);
@@ -428,6 +510,8 @@ test("partial submission resumes using SQLite metadata without resending a confi
   await new Promise((resolve) => server.close(resolve));
   server = require("../src/index").listen(0, "127.0.0.1");
   ready = new Promise((resolve) => server.once("listening", resolve));
+  assert.equal((await loginVoter()).status, 409);
+  assert.equal((await request("/vote/me", { token })).status, 200);
   nextFailure = null;
   const resumed = await submit(); assert.equal(resumed.status, 200); assert.equal(sendCalls, 3);
   assert.equal(resumed.data.signatures.length, 2);

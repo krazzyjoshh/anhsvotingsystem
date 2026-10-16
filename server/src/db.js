@@ -71,6 +71,13 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS voter_sessions (
+  token_id INTEGER PRIMARY KEY REFERENCES voting_tokens(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL UNIQUE,
+  election_id INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
 -- Resibo ng botante. Walang laman na nagsasabi kung ano ang pinili.
 CREATE TABLE IF NOT EXISTS receipts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
