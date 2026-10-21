@@ -105,6 +105,13 @@ if (!studentColumns.some((column) => column.name === "active")) {
   db.exec("ALTER TABLE students ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
 }
 
+// Legacy candidates retain their names; new selections keep a stable student identity.
+const candidateColumns = db.prepare("PRAGMA table_info(candidates)").all();
+if (!candidateColumns.some((column) => column.name === "student_id")) {
+  db.exec("ALTER TABLE candidates ADD COLUMN student_id INTEGER REFERENCES students(id) ON DELETE SET NULL");
+}
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS candidates_student ON candidates(student_id) WHERE student_id IS NOT NULL");
+
 const archiveColumns = db.prepare("PRAGMA table_info(election_archive)").all();
 for (const [name, definition] of [
   ["school_year", "TEXT NOT NULL DEFAULT ''"],

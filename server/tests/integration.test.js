@@ -282,6 +282,88 @@ test("ballot and metadata setup work before publishing and enforce the published
   assert.equal(settings.get("announcement"), "Welcome");
 });
 
+test("Grade 7 through 12 representatives list and accept only students from their grade", async () => {
+  fixture(); settings.set("status", "pending"); settings.set("election_address", "");
+  for (let grade = 7; grade <= 12; grade++) {
+    const student = db.prepare("INSERT INTO students (lrn, first_name, last_name, grade, section) VALUES (?, ?, ?, ?, ?)")
+      .run(`REP-${grade}`, `Rep${grade}`, "Student", grade % 2 ? `G${grade}` : String(grade), "R");
+    const position = db.prepare("INSERT INTO positions (name) VALUES (?)").run(`Grade ${grade} Representative`);
+    const id = Number(student.lastInsertRowid), positionId = Number(position.lastInsertRowid);
+    const eligible = await request(`/admin/candidate-students?position_id=${positionId}`, { token: admin });
+    assert.equal(eligible.status, 200); assert.equal(eligible.data.requiredGrade, grade);
+    assert.ok(eligible.data.students.some((entry) => entry.id === id));
+    assert.ok(eligible.data.students.every((entry) => Number(entry.grade.replace(/Grade\s*|G/i, "")) === grade));
+    const wrongGrade = await request("/admin/candidates", { token: admin, method: "POST", body: {
+      position_id: positionId, student_id: 1, grade: `Grade ${grade}`, full_name: "Forged Name" } });
+    if (grade !== 7) {
+      assert.equal(wrongGrade.status, 400); assert.match(wrongGrade.data.error, new RegExp(`Only Grade ${grade}`));
+    } else assert.equal(wrongGrade.status, 201);
+    const manual = await request("/admin/candidates", { token: admin, method: "POST", body: {
+      position_id: positionId, full_name: `Manual ${grade}`, grade: "Grade 6" } });
+    assert.equal(manual.status, 400);
+    const added = await request("/admin/candidates", { token: admin, method: "POST", body: {
+      position_id: positionId, student_id: id, grade: "Grade 1", full_name: "Forged Name", section: "Forged" } });
+    assert.equal(added.status, 201);
+    const saved = db.prepare("SELECT * FROM candidates WHERE id = ?").get(added.data.id);
+    assert.equal(saved.student_id, id); assert.equal(saved.full_name, `Rep${grade} Student`);
+    assert.equal(saved.section, "R"); assert.equal(saved.grade, grade % 2 ? `G${grade}` : String(grade));
+    const after = await request(`/admin/candidate-students?position_id=${positionId}`, { token: admin });
+    assert.ok(!after.data.students.some((entry) => entry.id === id));
+  }
+});
+
+test("a student cannot run twice, even for another office or with an edited name", async () => {
+  fixture(); settings.set("status", "pending"); settings.set("election_address", "");
+  const add = (body) => request("/admin/candidates", { token: admin, method: "POST", body });
+  const first = await add({ student_id: 1, position_id: 1 });
+  assert.equal(first.status, 201);
+  for (const position_id of [1, 2]) {
+    const duplicate = await add({ student_id: 1, position_id, full_name: "A different name" });
+    assert.equal(duplicate.status, 409); assert.match(duplicate.data.error, /only one position/);
+  }
+  assert.equal((await add({ full_name: "  STUDENT1   EXAMPLE  ", position_id: 2, grade: "Grade 12" })).status, 409);
+  db.prepare("UPDATE students SET first_name = 'Renamed' WHERE id = 1").run();
+  assert.equal((await add({ student_id: 1, position_id: 2 })).status, 409);
+  const eligible = await request("/admin/candidate-students?position_id=2", { token: admin });
+  assert.deepEqual(eligible.data.students.map((student) => student.id), [2]);
+  assert.equal((await add({ student_id: 2, position_id: 2 })).status, 201);
+  assert.throws(() => db.prepare("INSERT INTO candidates (full_name, position_id, student_id) VALUES ('Duplicate', 2, 1)").run(), /UNIQUE/);
+  settings.set("publishing", "1");
+  assert.equal((await add({ full_name: "Blocked", position_id: 1 })).status, 409);
+});
+
+test("legacy and manual candidates cannot be re-entered using case or whitespace changes", async () => {
+  fixture(); settings.set("status", "pending"); settings.set("election_address", "");
+  db.prepare("INSERT INTO candidates (full_name, position_id) VALUES ('  Student1   Example ', 1)").run();
+  const eligible = await request("/admin/candidate-students?position_id=2", { token: admin });
+  assert.deepEqual(eligible.data.students.map((student) => student.id), [2]);
+  const add = (body) => request("/admin/candidates", { token: admin, method: "POST", body });
+  assert.equal((await add({ student_id: 1, position_id: 2 })).status, 409);
+  assert.equal((await add({ full_name: "ANA  1", position_id: 2 })).status, 409);
+  assert.equal((await add({ full_name: "New Manual Candidate", position_id: 1 })).status, 201);
+  assert.equal((await add({ full_name: " new  manual candidate ", position_id: 2 })).status, 409);
+  const matched = await add({ full_name: "student2 example", grade: "Wrong", position_id: 2 });
+  assert.equal(matched.status, 201);
+  assert.equal(db.prepare("SELECT student_id FROM candidates WHERE id = ?").get(matched.data.id).student_id, 2);
+  for (const student_id of [9999, -1, 1.5, "invalid"]) {
+    assert.equal((await add({ student_id, full_name: "Invalid", position_id: 1 })).status, 400);
+  }
+  assert.equal((await request("/admin/candidate-students?position_id=9999", { token: admin })).status, 400);
+  assert.equal((await request("/admin/candidate-students?position_id=1")).status, 401);
+});
+
+test("candidate selection includes higher grades beyond the first 500 directory entries", async () => {
+  fixture(); settings.set("status", "pending"); settings.set("election_address", "");
+  const insert = db.prepare("INSERT INTO students (lrn, first_name, last_name, grade, section) VALUES (?, ?, 'Student', ?, 'A')");
+  db.transaction(() => {
+    for (let i = 0; i < 501; i++) insert.run(`LOWER-${i}`, `Lower${i}`, "Grade 10");
+    insert.run("UPPER-12", "Upper", "Grade 12");
+  })();
+  const position = db.prepare("INSERT INTO positions (name) VALUES ('Grade 12 Representative')").run();
+  const eligible = await request(`/admin/candidate-students?position_id=${position.lastInsertRowid}`, { token: admin });
+  assert.deepEqual(eligible.data.students.map((student) => student.lrn), ["UPPER-12"]);
+});
+
 test("all election information stays locked during publishing, publication, live voting and closure", async () => {
   fixture(); settings.set("status", "pending"); settings.set("election_address", "");
   const metadata = { title: "Locked Election", schoolYear: "SY 2026-2027", periodStart: "2026-10-12T08:00", periodEnd: "2026-10-12T17:00", announcement: "Voting schedule" };

@@ -4,6 +4,7 @@ const { parseStudentsCsv, inspectStudentsCsv } = require("../student-csv");
 const db = require("../db");
 const settings = require("../settings");
 const models = require("../models");
+const { normalizeName, studentName, gradeNumber, representativeGrade, alreadyCandidate } = require("../candidate-eligibility");
 
 const router = express.Router();
 
@@ -252,31 +253,72 @@ router.post("/positions", (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
+router.get("/candidate-students", (req, res) => {
+  const position = db.prepare("SELECT name FROM positions WHERE id = ?").get(Number(req.query.position_id));
+  if (!position) return fail(res, 400, "Select a valid position.");
+  const requiredGrade = representativeGrade(position.name);
+  const candidates = db.prepare("SELECT student_id, full_name FROM candidates").all();
+  // Filter before returning the list so higher grades are not lost to the directory's search limit.
+  const students = db.prepare("SELECT * FROM students ORDER BY grade, section, last_name COLLATE NOCASE, first_name COLLATE NOCASE").all()
+    .filter((student) => (requiredGrade === null || gradeNumber(student.grade) === requiredGrade)
+      && !alreadyCandidate(student, candidates));
+  res.json({ students, requiredGrade });
+});
+
 router.post("/candidates", (req, res) => {
   if (!assertUnlocked(res)) return;
 
+  const body = req.body ?? {};
   const candidate = {
-    full_name: clean(req.body.full_name),
-    position_id: Number(req.body.position_id),
-    partylist: clean(req.body.partylist),
-    grade: clean(req.body.grade),
-    section: clean(req.body.section),
-    photo_url: clean(req.body.photo_url),
+    full_name: clean(body.full_name),
+    position_id: Number(body.position_id),
+    partylist: clean(body.partylist),
+    grade: clean(body.grade),
+    section: clean(body.section),
+    photo_url: clean(body.photo_url),
+    student_id: null,
   };
 
-  if (!candidate.full_name || candidate.full_name.length > 40) {
-    return fail(res, 400, "A candidate name is required and must not exceed 40 characters.");
-  }
-  if (!db.prepare("SELECT 1 FROM positions WHERE id = ?").get(candidate.position_id)) {
-    return fail(res, 400, "Select a valid position.");
-  }
+  const info = db.transaction(() => {
+    const reject = (status, message) => { throw Object.assign(new Error(message), { status }); };
+    const position = db.prepare("SELECT name FROM positions WHERE id = ?").get(candidate.position_id);
+    if (!position) reject(400, "Select a valid position.");
 
-  const info = db
-    .prepare(
-      `INSERT INTO candidates (full_name, position_id, partylist, grade, section, photo_url)
-       VALUES (@full_name, @position_id, @partylist, @grade, @section, @photo_url)`
-    )
-    .run(candidate);
+    let student;
+    if (body.student_id !== undefined && body.student_id !== null && body.student_id !== "") {
+      const id = Number(body.student_id);
+      if (!Number.isSafeInteger(id) || id <= 0) reject(400, "Select a valid student.");
+      student = db.prepare("SELECT * FROM students WHERE id = ?").get(id);
+      if (!student) reject(400, "Select a valid student.");
+    } else {
+      // Also recognize manual entries and clients from before student IDs were saved.
+      const matches = db.prepare("SELECT * FROM students").all()
+        .filter((entry) => normalizeName(studentName(entry)) === normalizeName(candidate.full_name));
+      if (matches.length === 1) student = matches[0];
+    }
+    if (student) {
+      candidate.student_id = student.id;
+      candidate.full_name = studentName(student);
+      candidate.grade = student.grade;
+      candidate.section = student.section;
+    }
+    if (!candidate.full_name || candidate.full_name.length > 40) {
+      reject(400, "A candidate name is required and must not exceed 40 characters.");
+    }
+    const requiredGrade = representativeGrade(position.name);
+    if (requiredGrade !== null && gradeNumber(candidate.grade) !== requiredGrade) {
+      reject(400, `Only Grade ${requiredGrade} students can run for this position.`);
+    }
+    const candidates = db.prepare("SELECT student_id, full_name FROM candidates").all();
+    const duplicate = student ? alreadyCandidate(student, candidates)
+      : candidates.some((entry) => normalizeName(entry.full_name) === normalizeName(candidate.full_name));
+    if (duplicate) reject(409, "This student is already a candidate. A student can run for only one position.");
+
+    return db.prepare(
+      `INSERT INTO candidates (full_name, position_id, partylist, grade, section, photo_url, student_id)
+       VALUES (@full_name, @position_id, @partylist, @grade, @section, @photo_url, @student_id)`
+    ).run(candidate);
+  })();
   res.status(201).json({ id: info.lastInsertRowid });
 });
 

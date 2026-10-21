@@ -5,15 +5,44 @@ import { Icon } from "../admin";
 import { PageHeading, SummaryCards, PanelHeading, EmptyState, NameAvatar } from "../components/PageUI";
 import Modal from "../components/StudentModal";
 
-function CandidateForm({ initial, positions, students, onSave, onCancel, busy = false, message }) {
+function CandidateForm({ initial, positions, onSave, onCancel, busy = false, message }) {
   const [v, setV] = useState(initial);
+  const [students, setStudents] = useState([]);
+  const [requiredGrade, setRequiredGrade] = useState(null);
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [studentError, setStudentError] = useState(null);
   const set = (k) => (e) => setV({ ...v, [k]: e.target.value });
+
+  useEffect(() => {
+    let cancelled = false;
+    setStudents([]);
+    setRequiredGrade(null);
+    setLoadingStudents(true);
+    setStudentError(null);
+    api(`/admin/candidate-students?position_id=${encodeURIComponent(v.position_id)}`)
+      .then((data) => {
+        if (!cancelled) { setStudents(data.students); setRequiredGrade(data.requiredGrade); }
+      })
+      .catch((error) => { if (!cancelled) setStudentError({ type: "err", text: error.message }); })
+      .finally(() => { if (!cancelled) setLoadingStudents(false); });
+    return () => { cancelled = true; };
+  }, [v.position_id]);
+
+  function changePosition(event) {
+    setStudents([]);
+    setLoadingStudents(true);
+    setV({ ...v, position_id: event.target.value, student_id: "", full_name: "", grade: "", section: "", photo_url: "" });
+  }
 
   function pick(e) {
     const s = students.find((x) => String(x.id) === e.target.value);
-    if (!s) return;
+    if (!s) {
+      setV({ ...v, student_id: "", full_name: "", grade: "", section: "", photo_url: "" });
+      return;
+    }
     setV({
       ...v,
+      student_id: String(s.id),
       full_name: [s.first_name, s.given_name, s.last_name].filter(Boolean).join(" "),
       grade: s.grade,
       section: s.section,
@@ -23,25 +52,25 @@ function CandidateForm({ initial, positions, students, onSave, onCancel, busy = 
   return <form className="card" onSubmit={(e) => { e.preventDefault(); onSave(v); }}>
     <PanelHeading title="Add candidate" description="Select a student or enter the candidate’s information." icon="candidate" />
     <Msg m={message} />
+    <Msg m={studentError} />
     <fieldset className="page-form-grid" disabled={busy} style={{ border: 0, padding: 0, margin: 0 }}>
-      <label className="page-field-wide">Student (optional)<select aria-label="Candidate student" onChange={pick} defaultValue=""><option value="">— Select a student (optional) —</option>{students.map((s) => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name} ({s.grade} {s.section})</option>)}</select></label>
-      <label>Position<select aria-label="Candidate position" value={v.position_id} onChange={set("position_id")} required>{positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      <label>Full name<input placeholder="Full name (max 40 characters)" maxLength={40} value={v.full_name} onChange={set("full_name")} required /></label>
+      <label className="page-field-wide">Position<select aria-label="Candidate position" value={v.position_id} onChange={changePosition} required>{positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      <label className="page-field-wide">Student (optional)<select aria-label="Candidate student" onChange={pick} value={v.student_id} disabled={loadingStudents || Boolean(studentError)}><option value="">{loadingStudents ? "Loading eligible students..." : "— Select a student (optional) —"}</option>{students.map((s) => <option key={s.id} value={s.id}>{s.last_name}, {[s.first_name, s.given_name].filter(Boolean).join(" ")} ({s.grade} {s.section})</option>)}</select><small>{requiredGrade ? `Only Grade ${requiredGrade} students are listed. ` : ""}Students already running for a position are excluded.{!loadingStudents && !studentError && !students.length ? " No eligible students found." : ""}</small></label>
+      <label>Full name<input placeholder="Full name (max 40 characters)" maxLength={40} value={v.full_name} onChange={set("full_name")} readOnly={Boolean(v.student_id)} required /></label>
       <label>Partylist<input placeholder="Partylist" value={v.partylist} onChange={set("partylist")} /></label>
-      <label>Grade<input placeholder="Grade" value={v.grade} onChange={set("grade")} /></label>
-      <label>Section<input placeholder="Section" value={v.section} onChange={set("section")} /></label>
+      <label>Grade<input placeholder="Grade" value={v.grade} onChange={set("grade")} readOnly={Boolean(v.student_id)} required={requiredGrade !== null} /></label>
+      <label>Section<input placeholder="Section" value={v.section} onChange={set("section")} readOnly={Boolean(v.student_id)} /></label>
       <label>Photo URL<input placeholder="Photo URL (optional, http/https)" value={v.photo_url} onChange={set("photo_url")} /></label>
     </fieldset><div className="page-form-actions"><button type="submit" disabled={busy}><Icon name="check" size={16} />{busy ? "Saving..." : "Save"}</button><button type="button" className="ghost" disabled={busy} onClick={onCancel}>Close</button></div>
   </form>;
 }
 
 const blank = (positions) => ({
-  full_name: "", position_id: positions[0]?.id ?? "", partylist: "", grade: "", section: "", photo_url: "",
+  student_id: "", full_name: "", position_id: positions[0]?.id ?? "", partylist: "", grade: "", section: "", photo_url: "",
 });
 
 export default function Candidates() {
   const [data, setData] = useState({ positions: [], published: false });
-  const [students, setStudents] = useState([]);
   const [posName, setPosName] = useState("");
   const [adding, setAdding] = useState(false);
   const [addingPosition, setAddingPosition] = useState(false);
@@ -53,7 +82,6 @@ export default function Candidates() {
 
   useEffect(() => {
     load().catch((e) => setM({ type: "err", text: e.message }));
-    api("/admin/students").then((d) => setStudents(d.students)).catch(() => {});
   }, [load]);
 
   async function run(fn, ok) {
@@ -113,7 +141,7 @@ export default function Candidates() {
       </form>
     </Modal>}
     {adding && !locked && <Modal id="candidate-add-modal" label="Add candidate" open={adding} busy={candidateBusy} onClose={() => setAdding(false)}>
-      <CandidateForm initial={blank(P)} positions={P} students={students} onSave={save} onCancel={() => setAdding(false)} busy={candidateBusy} message={m} />
+      <CandidateForm initial={blank(P)} positions={P} onSave={save} onCancel={() => setAdding(false)} busy={candidateBusy} message={m} />
     </Modal>}
     <div className="page-position-grid">{P.map((p) => <section className="card" key={p.id}><PanelHeading title={p.name} icon="ballot"><span className="admin-pill">{p.candidates.length} candidate(s)</span></PanelHeading>
       <div className="page-candidate-list">{p.candidates.map((c) => <article className="page-candidate-profile" key={c.id}><NameAvatar name={c.full_name} /><div><strong>{c.full_name}</strong><small>{[c.partylist,c.grade,c.section].filter(Boolean).join(" · ") || "Candidate"}</small></div><Icon name="candidate" size={17} /></article>)}</div>

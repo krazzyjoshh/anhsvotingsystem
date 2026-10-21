@@ -1,5 +1,9 @@
 # Admin dashboard and login
 
+On Candidates and Positions, choose the position before selecting a student. Grade 7–12 Representative positions list only students from the corresponding grade. Students already assigned to any position are excluded. The server checks the grade and rejects duplicate candidacies, including manual names with changed capitalization or spacing. Student selections save a stable student ID and use the directory's name, grade and section. Existing candidate records remain intact when the student-link column is added automatically at startup.
+
+Run `node web/tests/candidates-browser.cjs` against a local frontend to check candidate selection with mocked API requests. Use `PLAYWRIGHT_MODULE` and `BROWSER_EXECUTABLE` if Playwright or the browser is installed outside the default locations.
+
 The admin layout follows the supplied light blue dashboard reference. The supplied HTML is saved in `ui-reference/admin-dashboard.html` for reference; the application uses React components and scoped CSS rather than the reference's Tailwind CDN and sample-data script.
 
 Students, Candidates, Tokens, Blockchain and Ledger now use the same light background, white panels, blue controls, labeled forms, metric cards and contained table scrolling as the dashboard. The Public page and receipt verification use this style with public navigation and the same DepEd/Agusan school branding. Shared presentation components are in `web/src/components/PageUI.jsx` and `PublicHeader.jsx`; the additional responsive styles are in `web/src/pages.css`.
