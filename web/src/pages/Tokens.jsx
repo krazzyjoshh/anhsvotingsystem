@@ -4,6 +4,7 @@ import { Msg } from "../ui";
 import { useOutletContext } from "react-router-dom";
 import { Icon } from "../admin";
 import { PageHeading, SummaryCards, PanelHeading, EmptyState, NameAvatar } from "../components/PageUI";
+import TokensPdfButton from "../components/TokensPdfButton";
 
 export default function Tokens() {
   const { stats, refresh } = useOutletContext();
@@ -46,7 +47,10 @@ export default function Tokens() {
 
   return (
     <div className="admin-content tokens-page">
-      <PageHeading title="Tokens" subtitle="Manage voting tokens and prepare tickets for voters." icon="key"><a className="admin-button secondary" href={`/admin/tokens/print?${printQuery}`} target="_blank" rel="noreferrer"><Icon name="ledger" size={16} />Print</a></PageHeading>
+      <PageHeading title="Tokens" subtitle="Manage voting tokens and prepare tickets for voters." icon="key">
+        <TokensPdfButton disabled={busy || !data.tokens.length} getTokens={async () => (await api(`/admin/tokens?${printQuery}`)).tokens} onError={(text) => setM({ type: "err", text })} />
+        <a className="admin-button secondary" href={`/admin/tokens/print?${printQuery}`} target="_blank" rel="noreferrer"><Icon name="ledger" size={16} />Print</a>
+      </PageHeading>
       <SummaryCards items={[
         {label:"Issued tokens", value:stats?.tokens, detail:"Voting tokens in the system", icon:"key"},
         {label:"Used tokens", value:stats?.usedTokens, detail:"Already used to vote", icon:"check"},

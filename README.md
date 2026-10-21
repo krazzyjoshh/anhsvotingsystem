@@ -34,6 +34,12 @@ Run the development command in one terminal. To restart, press Ctrl+C in that te
 
 The active frontend is in `web/`; `server/web/` is an earlier frontend.
 
+On **Admin > Tokens**, generate student tokens, apply the desired grade, section,
+usage and student status filters, then select **Download PDF** to save the
+matching token tickets. PDFs use A4 paper with ten tickets per page and include
+each student's name, grade, section and voting code. The print preview also has
+a **Download PDF** button for saving the tickets shown there.
+
 ## Deploying to DockHosting
 
 Follow [the DockHosting guide](docs/DOCKHOSTING.md) to serve the website and API from one Docker deployment. A persistent volume at `/data` and private runtime secrets are required. Verify Free-plan storage availability before deploying; the production launcher refuses to use an unmounted container directory for election data.
@@ -49,6 +55,7 @@ Follow [the Windows transfer guide](docs/WINDOWS_TRANSFER.md). A GitHub clone pr
 ## Validation
 
 ```sh
+npm --prefix web test
 npm --prefix web run build
 npm --prefix server test
 ```
