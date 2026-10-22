@@ -11,7 +11,7 @@ function tokens(count) {
     given_name: "Cruz",
     grade: "Grade 7",
     section: "A",
-    used: index % 2,
+    used: 0,
   }));
 }
 
@@ -23,7 +23,7 @@ function pageText(pdf) {
 }
 
 test("empty results do not create a blank PDF", async () => {
-  await assert.rejects(createTokensPdf([]), /No tokens to export/);
+  await assert.rejects(createTokensPdf([]), /No unused tokens to export/);
 });
 
 test("tickets contain full names, accented characters, codes and usage", async () => {
@@ -33,9 +33,25 @@ test("tickets contain full names, accented characters, codes and usage", async (
   assert.match(text, /Peña, Ana Cruz/);
   assert.match(text, /Grade 7 \| A/);
   assert.match(text, /Unused/);
-  assert.match(text, /Used/);
+  assert.doesNotMatch(text, /\(Used\)/);
   assert.match(text, /Single use only/);
   for (const token of tokens(2)) assert.equal(text.split(token.code).length - 1, 1);
+});
+
+test("used tokens are excluded before PDF pagination and counts", async () => {
+  const data = tokens(21).map((token, index) => ({ ...token, used: index % 2 }));
+  const pdf = await createTokensPdf(data);
+  const pages = pageText(pdf);
+  assert.equal(pdf.getNumberOfPages(), 2);
+  assert.match(pages[0], /11 token/);
+  const text = pages.join("");
+  for (const token of data) {
+    assert.equal(text.includes(token.code), !token.used);
+  }
+});
+
+test("only used tokens do not create a blank PDF", async () => {
+  await assert.rejects(createTokensPdf(tokens(2).map((token) => ({ ...token, used: 1 }))), /No unused tokens to export/);
 });
 
 test("A4 pagination keeps each ticket together without extra blank pages", async () => {

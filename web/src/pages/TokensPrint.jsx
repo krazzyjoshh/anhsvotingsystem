@@ -14,9 +14,10 @@ export default function TokensPrint() {
     setLoading(true);
     setErr("");
     setTokens([]);
-    const q = new URLSearchParams({ status: "unused", ...Object.fromEntries(sp) });
+    const q = new URLSearchParams(sp);
+    q.set("status", "unused");
     api(`/admin/tokens?${q}`)
-      .then((d) => { if (active) setTokens(d.tokens); })
+      .then((d) => { if (active) setTokens(d.tokens.filter((t) => !t.used)); })
       .catch((e) => { if (active) setErr(e.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -29,7 +30,7 @@ export default function TokensPrint() {
         <TokensPdfButton disabled={loading || !tokens.length} getTokens={() => tokens} onError={setErr} />
         <span role="status">{loading ? "Loading tokens..." : `${tokens.length} token(s)`}</span>
         {err && <span className="msg err" role="alert">{err}</span>}
-        {!loading && !err && !tokens.length && <span>No tokens to display. Adjust the filters or generate tokens first.</span>}
+        {!loading && !err && !tokens.length && <span>No unused tokens to print. Adjust the filters or generate tokens first.</span>}
       </div>
       <div className="print-grid">
         {tokens.map((t) => (

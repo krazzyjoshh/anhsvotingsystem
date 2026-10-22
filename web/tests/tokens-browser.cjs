@@ -51,7 +51,14 @@ const origin = process.env.BROWSER_BASE_URL || 'http://127.0.0.1:5173';
 
     await page.goto(origin + '/admin/tokens');
     await page.getByText('11 shown', { exact: true }).waitFor();
-    await download(2);
+    await download(1);
+    assert.equal(lastQuery.get('status'), 'unused');
+    await page.getByLabel('Filter token usage', { exact: true }).selectOption('used');
+    await page.getByText('5 shown', { exact: true }).waitFor();
+    const usedPrintPath = await page.getByRole('link', { name: 'Print', exact: true }).getAttribute('href');
+    assert.equal(new URL(usedPrintPath, origin).searchParams.get('status'), 'unused');
+    await download(1);
+    assert.equal(lastQuery.get('status'), 'unused');
     await page.getByLabel('Filter token grade', { exact: true }).selectOption('Grade 7');
     await page.getByLabel('Filter token section', { exact: true }).selectOption('A');
     await page.getByLabel('Filter token usage', { exact: true }).selectOption('unused');
@@ -70,6 +77,16 @@ const origin = process.env.BROWSER_BASE_URL || 'http://127.0.0.1:5173';
     await page.getByText('1 token(s)', { exact: true }).waitFor();
     await page.getByText('Peña 1, Ana Cruz', { exact: true }).waitFor();
     await download(1);
+
+    for (const status of ['', 'used', 'all']) {
+      await page.goto(origin + '/admin/tokens/print?status=' + status);
+      await page.getByText('6 token(s)', { exact: true }).waitFor();
+      assert.equal(lastQuery.get('status'), 'unused');
+      assert.equal(await page.locator('.ticket').count(), 6);
+      for (const token of tokens.filter((token) => token.used)) {
+        assert.equal(await page.locator('.ticket .code').getByText(token.code, { exact: true }).count(), 0);
+      }
+    }
 
     await page.goto(origin + '/admin/tokens/print?active=0');
     await page.getByText('0 token(s)', { exact: true }).waitFor();

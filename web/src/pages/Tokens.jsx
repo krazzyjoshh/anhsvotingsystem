@@ -43,12 +43,14 @@ export default function Tokens() {
   const grades = [...new Set(data.sections.map((s) => s.grade))];
   const gSections = [...new Set(data.sections.filter((s) => !g.grade || s.grade === g.grade).map((s) => s.section))];
   const fSections = [...new Set(data.sections.filter((s) => !f.grade || s.grade === f.grade).map((s) => s.section))];
-  const printQuery = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
+  const printParams = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
+  printParams.set("status", "unused");
+  const printQuery = printParams.toString();
 
   return (
     <div className="admin-content tokens-page">
-      <PageHeading title="Tokens" subtitle="Manage voting tokens and prepare tickets for voters." icon="key">
-        <TokensPdfButton disabled={busy || !data.tokens.length} getTokens={async () => (await api(`/admin/tokens?${printQuery}`)).tokens} onError={(text) => setM({ type: "err", text })} />
+      <PageHeading title="Tokens" subtitle="Manage voting tokens. Print and PDF include unused tokens only." icon="key">
+        <TokensPdfButton disabled={busy} getTokens={async () => (await api(`/admin/tokens?${printQuery}`)).tokens} onError={(text) => setM({ type: "err", text })} />
         <a className="admin-button secondary" href={`/admin/tokens/print?${printQuery}`} target="_blank" rel="noreferrer"><Icon name="ledger" size={16} />Print</a>
       </PageHeading>
       <SummaryCards items={[

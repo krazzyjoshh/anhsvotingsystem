@@ -1,6 +1,7 @@
 // Ten cut-out tickets per A4 page, with token codes kept as selectable text.
 export async function createTokensPdf(tokens) {
-  if (!tokens.length) throw new Error("No tokens to export. Generate tokens or adjust the filters.");
+  tokens = tokens.filter((token) => !token.used);
+  if (!tokens.length) throw new Error("No unused tokens to export. Generate tokens or adjust the filters.");
 
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ format: "a4", unit: "mm", compress: true });
@@ -35,7 +36,7 @@ export async function createTokensPdf(tokens) {
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(7);
       pdf.text("ANHS VOTING SYSTEM", x + 4, y + 5);
-      pdf.text(token.used ? "Used" : "Unused", x + width - 4, y + 5, { align: "right" });
+      pdf.text("Unused", x + width - 4, y + 5, { align: "right" });
 
       // Fit long student names within two lines without cutting off the name.
       pdf.setTextColor(23, 36, 58);
